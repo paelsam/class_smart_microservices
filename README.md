@@ -166,7 +166,7 @@ graph TB
         DB2[(Product DB<br/>PostgreSQL)]
         DB3[(Order DB<br/>PostgreSQL)]
         DB4[(Cart DB<br/>PostgreSQL)]
-        MQ[RabbitMQ<br/>Message Broker]
+        MQ[Kafka<br/>Message Broker]
     end
     
     FE -->|HTTPS| GW
@@ -185,13 +185,13 @@ graph TB
     PROD -.->|Events| MQ
     MQ -.->|Subscribe| NOTIF
     
-    style FE fill:#61dafb
-    style GW fill:#ff6b6b
-    style AUTH fill:#4ecdc4
-    style PROD fill:#4ecdc4
-    style ORDER fill:#4ecdc4
-    style CART fill:#4ecdc4
-    style NOTIF fill:#4ecdc4
+    style FE fill:#61dafb,stroke:#333,stroke-width:3px,color:#000
+    style GW fill:#ff6b6b,stroke:#333,stroke-width:3px,color:#fff
+    style AUTH fill:#00c853,stroke:#333,stroke-width:2px,color:#fff
+    style PROD fill:#2196f3,stroke:#333,stroke-width:2px,color:#fff
+    style ORDER fill:#ff9800,stroke:#333,stroke-width:2px,color:#fff
+    style CART fill:#9c27b0,stroke:#333,stroke-width:2px,color:#fff
+    style NOTIF fill:#e91e63,stroke:#333,stroke-width:2px,color:#fff
 ```
 
 ### Total de Microservicios: 5
@@ -496,10 +496,10 @@ graph LR
     end
     
     subgraph "Event Bus"
-        RABBIT[RabbitMQ]
-        EX1[Exchange: orders]
-        EX2[Exchange: products]
-        EX3[Exchange: users]
+        KAFKA[Kafka]
+        T1[Topic: orders]
+        T2[Topic: products]
+        T3[Topic: users]
     end
     
     subgraph "Async Consumers"
@@ -516,22 +516,22 @@ graph LR
     ROUTER -->|/api/orders/*| S3
     ROUTER -->|/api/cart/*| S4
     
-    S3 -.->|Publish Events| RABBIT
-    S2 -.->|Publish Events| RABBIT
-    S1 -.->|Publish Events| RABBIT
+    S3 -.->|Publish Events| KAFKA
+    S2 -.->|Publish Events| KAFKA
+    S1 -.->|Publish Events| KAFKA
     
-    RABBIT --> EX1
-    RABBIT --> EX2
-    RABBIT --> EX3
+    KAFKA --> T1
+    KAFKA --> T2
+    KAFKA --> T3
     
-    EX1 -.->|Subscribe| S5
-    EX2 -.->|Subscribe| S5
-    EX3 -.->|Subscribe| S5
+    T1 -.->|Subscribe| S5
+    T2 -.->|Subscribe| S5
+    T3 -.->|Subscribe| S5
     
-    style CLIENT fill:#61dafb
-    style KONG fill:#ff6b6b
-    style RABBIT fill:#ff9f43
-    style S5 fill:#4ecdc4
+    style CLIENT fill:#61dafb,stroke:#333,stroke-width:3px,color:#000
+    style KONG fill:#ff6b6b,stroke:#333,stroke-width:3px,color:#fff
+    style KAFKA fill:#231f20,stroke:#333,stroke-width:3px,color:#fff
+    style S5 fill:#e91e63,stroke:#333,stroke-width:2px,color:#fff
 ```
 
 ### API Gateway: Kong
@@ -556,17 +556,18 @@ graph LR
 6. **Request Termination**: Bloquear requests según criterios
 7. **Prometheus**: Métricas para monitoreo
 
-### Sistema de Eventos con RabbitMQ
+### Sistema de Eventos con Kafka
 
-#### ¿Por qué RabbitMQ?
-- Protocolo AMQP robusto
-- Garantías de entrega de mensajes
-- Soporte para múltiples patrones (pub/sub, work queues)
-- Dead Letter Queues para manejo de errores
-- Management UI integrado
-- Clustering para alta disponibilidad
+#### ¿Por qué Kafka?
+- Alto rendimiento y throughput
+- Persistencia de mensajes distribuida
+- Escalabilidad horizontal
+- Retención de mensajes configurable
+- Procesamiento de streams en tiempo real
+- Replicación de datos para alta disponibilidad
+- Ecosistema robusto (Kafka Streams, Kafka Connect)
 
-#### Topología de Exchanges y Queues
+#### Topología de Topics y Particiones
 
 ```mermaid
 graph TB
@@ -576,37 +577,33 @@ graph TB
         P3[Auth Service]
     end
     
-    subgraph "RabbitMQ Exchanges"
-        EX1[Exchange: orders<br/>Type: topic]
-        EX2[Exchange: products<br/>Type: topic]
-        EX3[Exchange: users<br/>Type: topic]
+    subgraph "Kafka Topics"
+        T1[Topic: orders<br/>Partitions: 3]
+        T2[Topic: products<br/>Partitions: 3]
+        T3[Topic: users<br/>Partitions: 3]
     end
     
-    subgraph "Queues"
-        Q1[notification.orders]
-        Q2[notification.products]
-        Q3[notification.users]
+    subgraph "Consumer Groups"
+        CG1[notification-service-group]
     end
     
     subgraph "Consumers"
         C1[Notification Service]
     end
     
-    P1 -->|Publish| EX1
-    P2 -->|Publish| EX2
-    P3 -->|Publish| EX3
+    P1 -->|Produce| T1
+    P2 -->|Produce| T2
+    P3 -->|Produce| T3
     
-    EX1 -->|order.*| Q1
-    EX2 -->|product.*| Q2
-    EX3 -->|user.*| Q3
+    T1 -->|Subscribe| CG1
+    T2 -->|Subscribe| CG1
+    T3 -->|Subscribe| CG1
     
-    Q1 --> C1
-    Q2 --> C1
-    Q3 --> C1
+    CG1 --> C1
     
-    style EX1 fill:#ff9f43
-    style EX2 fill:#ff9f43
-    style EX3 fill:#ff9f43
+    style T1 fill:#231f20,stroke:#333,stroke-width:2px,color:#fff
+    style T2 fill:#231f20,stroke:#333,stroke-width:2px,color:#fff
+    style T3 fill:#231f20,stroke:#333,stroke-width:2px,color:#fff
 ```
 
 ### Patrones de Comunicación
@@ -617,7 +614,7 @@ sequenceDiagram
     participant G as API Gateway
     participant O as Order Service
     participant P as Product Service
-    participant MQ as RabbitMQ
+    participant K as Kafka
     participant N as Notification Service
     
     Note over C,N: Flujo Síncrono + Asíncrono
@@ -633,10 +630,10 @@ sequenceDiagram
     O-->>G: 201 Created {order_id}
     G-->>C: Orden creada exitosamente
     
-    Note over O,MQ: Comunicación Asíncrona
-    O->>MQ: Publish order.created event
+    Note over O,K: Comunicación Asíncrona
+    O->>K: Produce order.created event
     
-    MQ->>N: order.created
+    K->>N: Consume order.created
     N->>N: Enviar email confirmación
 ```
 
@@ -697,10 +694,10 @@ graph LR
     PROD --> K8S
     K8S --> MONITORING
     
-    style GIT fill:#4078c0
-    style DOCKER fill:#2496ed
-    style K8S fill:#326ce5
-    style MONITORING fill:#e25822
+    style GIT fill:#24292e,stroke:#333,stroke-width:3px,color:#fff
+    style DOCKER fill:#2496ed,stroke:#333,stroke-width:3px,color:#fff
+    style K8S fill:#326ce5,stroke:#333,stroke-width:3px,color:#fff
+    style MONITORING fill:#e25822,stroke:#333,stroke-width:3px,color:#fff
 ```
 
 ### 1. Control de Versiones: GitHub
@@ -760,13 +757,13 @@ graph LR
     TESTING -->|Passed| DONE
     TESTING -->|Failed| PROGRESS
     
-    style BACKLOG fill:#dfe1e6
-    style SPRINT fill:#4c9aff
-    style TODO fill:#ff991f
-    style PROGRESS fill:#ffab00
-    style REVIEW fill:#6554c0
-    style TESTING fill:#00b8d9
-    style DONE fill:#36b37e
+    style BACKLOG fill:#e0e0e0,stroke:#333,stroke-width:2px,color:#000
+    style SPRINT fill:#2196f3,stroke:#333,stroke-width:2px,color:#fff
+    style TODO fill:#ff9800,stroke:#333,stroke-width:2px,color:#fff
+    style PROGRESS fill:#ffc107,stroke:#333,stroke-width:2px,color:#000
+    style REVIEW fill:#9c27b0,stroke:#333,stroke-width:2px,color:#fff
+    style TESTING fill:#00bcd4,stroke:#333,stroke-width:2px,color:#fff
+    style DONE fill:#4caf50,stroke:#333,stroke-width:2px,color:#fff
 ```
 
 #### Epic Structure
@@ -803,7 +800,7 @@ Epic 5: Infrastructure Setup
   ├── Story: Kubernetes Cluster Setup
   ├── Story: CI/CD Pipeline
   ├── Story: API Gateway Configuration
-  ├── Story: RabbitMQ Setup
+  ├── Story: Kafka Setup
   └── Story: Monitoring Stack
 
 Epic 6: Frontend Adaptation
